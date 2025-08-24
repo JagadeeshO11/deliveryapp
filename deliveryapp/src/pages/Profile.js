@@ -1,19 +1,60 @@
+import { useEffect, useState } from "react";
 import { Container, Row, Col, Card, Badge, Button } from "react-bootstrap";
 import { FaPhone, FaCar, FaCity, FaSignOutAlt } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 
 function Profile() {
-  const user = JSON.parse(localStorage.getItem("user")) || {};
+  const [user, setUser] = useState(() => {
+    return JSON.parse(localStorage.getItem("user")) || null;
+  });
+
   const navigate = useNavigate();
 
+  // Fetch profile if not in localStorage
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!user) {
+        try {
+          const token = localStorage.getItem("token");
+          if (!token) {
+            navigate("/login");
+            return;
+          }
+
+          const res = await axios.get("http://localhost:5000/api/profile", {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+
+          if (res.data.success) {
+            setUser(res.data.user);
+            localStorage.setItem("user", JSON.stringify(res.data.user));
+          }
+        } catch (err) {
+          console.error("Profile fetch error:", err);
+          navigate("/login");
+        }
+      }
+    };
+    fetchProfile();
+  }, [user, navigate]);
+
   // Generate initials if no avatar
-  const initials = user.name?.split(" ").map((n) => n[0]).join("") || "U";
+  const initials = user?.name?.split(" ").map((n) => n[0]).join("") || "U";
 
   const handleLogout = () => {
     localStorage.removeItem("user");
-    localStorage.removeItem("token"); // clear token if stored
+    localStorage.removeItem("token");
     navigate("/login");
   };
+
+  if (!user) {
+    return (
+      <Container className="py-5 text-center">
+        <h4>Loading profile...</h4>
+      </Container>
+    );
+  }
 
   return (
     <Container className="py-5">
@@ -34,10 +75,8 @@ function Profile() {
                 >
                   {initials}
                 </div>
-                <h4 className="mb-0">{user.name || "Guest User"}</h4>
-                <small className="text-light">
-                  {user.email || "No email provided"}
-                </small>
+                <h4 className="mb-0">{user.name}</h4>
+                <small className="text-light">{user.email}</small>
               </div>
             </Card.Header>
 

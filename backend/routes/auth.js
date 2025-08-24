@@ -2,9 +2,11 @@ import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import pool from '../db/db.js';
-import { sendOTP, verifyOTP } from '../utils/otp.js'; // keep your existing otp.js
+import { sendOTP } from '../utils/otp.js'; // verifyOTP not needed here
 
 const router = express.Router();
+
+// ================== OTP ==================
 
 // Send OTP
 router.post('/send-otp', async (req, res) => {
@@ -12,13 +14,12 @@ router.post('/send-otp', async (req, res) => {
   if (!email) return res.status(400).json({ success: false, msg: 'Email required' });
 
   try {
-    const otp = await sendOTP(email); // generate OTP using your otp.js
+    const otp = await sendOTP(email); // your otp.js sends OTP to email
 
-    // Insert OTP hash and timestamp into email_verification table
+    // Hash OTP & save
     const hashedOtp = await bcrypt.hash(otp, 10);
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // OTP valid for 10 minutes
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 min
 
-    // Upsert logic: if email already exists, update; else insert
     await pool.query(
       `INSERT INTO email_verification (email, otp_hash, expires_at, verified, created_at)
        VALUES ($1, $2, $3, false, CURRENT_TIMESTAMP)
@@ -38,34 +39,22 @@ router.post('/send-otp', async (req, res) => {
 router.post('/verify-otp', async (req, res) => {
   const { email, otp } = req.body;
   try {
-    const record = await pool.query(
-      `SELECT * FROM email_verification WHERE email = $1`,
-      [email]
-    );
-
+    const record = await pool.query(`SELECT * FROM email_verification WHERE email = $1`, [email]);
     if (record.rows.length === 0) {
       return res.status(400).json({ success: false, msg: 'No OTP request found for this email' });
     }
 
     const otpRecord = record.rows[0];
-
-    // Check expiry
     if (new Date() > new Date(otpRecord.expires_at)) {
       return res.status(400).json({ success: false, msg: 'OTP expired' });
     }
 
-    // Compare OTP
     const isMatch = await bcrypt.compare(otp, otpRecord.otp_hash);
     if (!isMatch) {
       return res.status(400).json({ success: false, msg: 'Invalid OTP' });
     }
 
-    // Mark as verified
-    await pool.query(
-      `UPDATE email_verification SET verified = true WHERE email = $1`,
-      [email]
-    );
-
+    await pool.query(`UPDATE email_verification SET verified = true WHERE email = $1`, [email]);
     res.json({ success: true, msg: 'OTP verified' });
   } catch (err) {
     console.error('Verify OTP error:', err);
@@ -73,18 +62,18 @@ router.post('/verify-otp', async (req, res) => {
   }
 });
 
+// ================== AUTH ==================
+
 // Signup
 router.post('/signup', async (req, res) => {
   const { email, name, phone, vehicle, city, password } = req.body;
 
   try {
-    // 1. Check if email exists already
     const existing = await pool.query(`SELECT * FROM users WHERE email = $1`, [email]);
     if (existing.rows.length > 0) {
       return res.status(400).json({ success: false, msg: 'Email already registered' });
     }
 
-    // 2. Check if email was OTP verified
     const otpRecord = await pool.query(
       `SELECT * FROM email_verification WHERE email = $1 AND verified = true`,
       [email]
@@ -93,17 +82,14 @@ router.post('/signup', async (req, res) => {
       return res.status(400).json({ success: false, msg: 'Email not verified. Please verify OTP first.' });
     }
 
-    // 3. Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // 4. Insert user
     await pool.query(
       `INSERT INTO users (email, name, phone, vehicle, city, password) 
        VALUES ($1, $2, $3, $4, $5, $6)`,
       [email, name, phone, vehicle, city, hashedPassword]
     );
 
-    // 5. Delete OTP record after signup
     await pool.query(`DELETE FROM email_verification WHERE email = $1`, [email]);
 
     res.json({ success: true, msg: 'Signup successful' });
@@ -125,7 +111,19 @@ router.post('/login', async (req, res) => {
     if (!isMatch) return res.json({ success: false, msg: 'Invalid password' });
 
     const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '1h' });
-    res.json({ success: true, token });
+
+    res.json({
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        phone: user.phone,
+        vehicle: user.vehicle,
+        city: user.city
+      }
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, msg: 'Login failed' });

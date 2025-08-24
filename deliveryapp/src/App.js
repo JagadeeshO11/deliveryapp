@@ -26,7 +26,7 @@ function App() {
             </ProtectedRoutes>
           }
         >
-          <Route path="/" element={<Dashboard />} />
+          <Route path="/Dashboard" element={<Dashboard />} />
           <Route path="/order" element={<Order />} />
           <Route path="/wallet" element={<Wallet />} />
           <Route path="/profile" element={<Profile />} />
