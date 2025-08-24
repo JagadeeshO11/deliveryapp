@@ -1,41 +1,46 @@
-// src/pages/Dashboard.js
 import React, { useEffect, useState } from "react";
+import { Container, Row, Col, Card } from "react-bootstrap";
 import axios from "axios";
-import { Card, Container } from "react-bootstrap";
-import Navbar from "../components/Navbar"; // ✅ Import Navbar
 
 const Dashboard = () => {
-  const [user, setUser] = useState(null);
+  const [data, setData] = useState([]);
 
   useEffect(() => {
-    const fetchProfile = async () => {
+    const fetchData = async () => {
       try {
         const token = localStorage.getItem("token");
-        const res = await axios.get("http://localhost:5000/api/profile", {
+        if (!token) return;
+
+        const res = await axios.get("http://localhost:5000/api/dashboard", {
           headers: { Authorization: `Bearer ${token}` },
         });
-        setUser(res.data);
+
+        if (res.data.success) {
+          setData(res.data.items); // adjust based on your backend
+        }
       } catch (err) {
-        console.error(err);
+        console.error("Dashboard fetch error:", err);
       }
     };
-    fetchProfile();
+
+    fetchData();
   }, []);
 
   return (
-    <div>
-      {/* ✅ Navbar always on top */}
-      <Navbar />
-
-      {/* Main Content */}
-      <Container className="d-flex justify-content-center align-items-center vh-100">
-        <Card className="p-4 shadow text-center">
-          <h3>🚧 Work in Progress 🚧</h3>
-          <p>Dashboard features will be available soon.</p>
-          {user && <p className="text-muted">Welcome back, {user.name}!</p>}
-        </Card>
-      </Container>
-    </div>
+    <Container className="py-5">
+      <Row>
+        {data.map((item) => (
+          <Col xs={12} md={6} lg={4} key={item.id}>
+            <Card className="mb-3 shadow-sm">
+              <Card.Body>
+                <Card.Title>{item.title}</Card.Title>
+                <Card.Text>{item.description}</Card.Text>
+              </Card.Body>
+            </Card>
+          </Col>
+        ))}
+      </Row>
+    </Container>
   );
 };
 

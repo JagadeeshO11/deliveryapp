@@ -1,8 +1,6 @@
 import React from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Layout from "./components/Layout";
-import ProtectedRoutes from "./components/ProtectedRoutes";
-// Pages
 import Dashboard from "./pages/Dashboard";
 import Order from "./pages/Order";
 import Wallet from "./pages/Wallet";
@@ -10,23 +8,20 @@ import Profile from "./pages/Profile";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 
+function Protected({ children }) {
+  const token = localStorage.getItem("token");
+  return token ? children : <Navigate to="/login" />;
+}
+
 function App() {
   return (
     <Router>
       <Routes>
-        {/* Public Routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
 
-        {/* Protected Routes inside Layout */}
-        <Route
-          element={
-            <ProtectedRoutes>
-              <Layout />
-            </ProtectedRoutes>
-          }
-        >
-          <Route path="/Dashboard" element={<Dashboard />} />
+        <Route element={<Protected><Layout /></Protected>}>
+          <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/order" element={<Order />} />
           <Route path="/wallet" element={<Wallet />} />
           <Route path="/profile" element={<Profile />} />
